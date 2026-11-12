@@ -26,7 +26,7 @@ STATEMENT_DATE = date(2026, 11, 10)
 
 BANKS: list[Bank] = [
     Bank("leumi", "לאומי", Entity.IL, BankKind.BANK, D("250000.00")),
-    Bank("chase", "Chase", Entity.US, BankKind.BANK, D("1200000.00")),
+    Bank("chase", "צ'ייס", Entity.US, BankKind.BANK, D("1200000.00")),
     Bank("cards", "פלטפורמת כרטיסים", Entity.US, BankKind.CARD_PLATFORM, D("50000.00")),
 ]
 
@@ -125,6 +125,7 @@ class LabelledLine:
     # For MATCHED: the one document this line must be matched to.
     # For REVIEW: the candidate documents (none of them may be matched).
     doc_numbers: tuple[str, ...] = ()
+    note: str = ""  # why this line gets its expected result, for the review file
 
 
 @dataclass
@@ -159,23 +160,31 @@ def matching_scenario() -> MatchingScenario:
     # Doubt case 1: two approved payments to the same supplier, same amount.
     uploads += [_inv("Acme Cloud", "1000.00", "M-213"), _inv("Acme Cloud", "1000.00", "M-214")]
     lines += [
-        LabelledLine("chase", _line("Acme Cloud", "1000.00"), REVIEW, ("M-213", "M-214")),
-        LabelledLine("chase", _line("Acme Cloud", "1000.00"), REVIEW, ("M-213", "M-214")),
+        LabelledLine("chase", _line("Acme Cloud", "1000.00"), REVIEW, ("M-213", "M-214"),
+                     "שני תשלומים לאותו ספק באותו סכום"),
+        LabelledLine("chase", _line("Acme Cloud", "1000.00"), REVIEW, ("M-213", "M-214"),
+                     "שני תשלומים לאותו ספק באותו סכום"),
     ]
 
     # Doubt case 2: near-identical name ("Globex Ltd" vs "GLOBEX, LTD.").
     uploads.append(_inv("Globex Ltd", "750.00", "M-215"))
-    lines.append(LabelledLine("chase", _line("GLOBEX, LTD.", "750.00"), REVIEW, ("M-215",)))
+    lines.append(LabelledLine("chase", _line("GLOBEX, LTD.", "750.00"), REVIEW, ("M-215",),
+                              "שם כמעט זהה: אחרי ניקוי זהה ל-Globex Ltd, במקור שונה"))
 
     # Missing invoice: lines that never went through the system.
     lines += [
-        LabelledLine("leumi", _line("Bezeq International", "349.90"), MISSING),
+        LabelledLine("leumi", _line("Bezeq International", "349.90"), MISSING,
+                     note="ספק שלא עבר דרך המערכת"),
         # Known supplier, but no approved payment for this amount.
-        LabelledLine("leumi", _line("Initech Israel", "1250.00"), MISSING),
-        LabelledLine("chase", _line("Zoom Video", "149.90"), MISSING),
-        LabelledLine("chase", _line("Delta Air Lines", "1284.60"), MISSING),
+        LabelledLine("leumi", _line("Initech Israel", "1250.00"), MISSING,
+                     note="ספק מוכר, אבל אין תשלום מאושר בסכום הזה"),
+        LabelledLine("chase", _line("Zoom Video", "149.90"), MISSING,
+                     note="ספק שלא עבר דרך המערכת"),
+        LabelledLine("chase", _line("Delta Air Lines", "1284.60"), MISSING,
+                     note="ספק שלא עבר דרך המערכת"),
         # One cent off an approved Hooli payment: must not be matched to it.
-        LabelledLine("chase", _line("Hooli Analytics", "7800.01"), MISSING),
+        LabelledLine("chase", _line("Hooli Analytics", "7800.01"), MISSING,
+                     note="סנט אחד יותר מתשלום מאושר (M-207): אסור לשייך"),
     ]
     return MatchingScenario(uploads=uploads, lines=lines)
 

@@ -83,3 +83,12 @@ create table alerts (
   created_at        timestamptz not null default now(),
   check (document_id is not null or statement_line_id is not null)
 );
+
+-- Row level security on every table. With no policies, the public (anon) key
+-- sees nothing; the server-side key used by the app and tests bypasses RLS.
+alter table banks           enable row level security;
+alter table suppliers       enable row level security;
+alter table documents       enable row level security;
+alter table payments        enable row level security;
+alter table statement_lines enable row level security;
+alter table alerts          enable row level security;

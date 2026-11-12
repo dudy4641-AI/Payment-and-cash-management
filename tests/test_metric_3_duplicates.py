@@ -6,7 +6,7 @@ cases; 0 duplicate payments."""
 from collections import Counter
 
 from payments.mock_data import STATEMENT_DATE, correct_bank, duplicate_scenario
-from payments.models import AlertType, StatementEntry, Status
+from payments.models import AlertType, Recipient, StatementEntry, Status
 
 from .conftest import current, upload_and_approve
 
@@ -48,10 +48,11 @@ def test_duplicates_alerted_and_tax_invoices_close_demands(system):
     for doc in invoice_docs + copy_docs:
         assert system.approve(doc.id, correct_bank(doc.supplier_name)) is None
 
-    # Double uploads: 4 of 4 alerted, on the copies, sent for review.
+    # Double uploads: 4 of 4 alerted, on the copies, sent to the bookkeeper for review.
     duplicate_alerts = [a for a in system.alerts() if a.alert_type == AlertType.DUPLICATE]
     assert len(duplicate_alerts) == scenario.expected_duplicate_alerts
     assert {a.document_id for a in duplicate_alerts} == {d.id for d in copy_docs}
+    assert all(a.recipient == Recipient.BOOKKEEPER for a in duplicate_alerts)
     assert all(current(system, d.id).status == Status.NEEDS_REVIEW for d in copy_docs)
 
     # Tax invoices: linked to the original payment, demand closed as paid.

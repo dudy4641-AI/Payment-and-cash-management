@@ -49,6 +49,14 @@ class Recipient(str, Enum):
     BOOKKEEPER = "מנהלת חשבונות"
 
 
+# Who handles each alert (SPEC section 5).
+ALERT_RECIPIENT = {
+    AlertType.DUPLICATE: Recipient.BOOKKEEPER,
+    AlertType.WRONG_BANK: Recipient.CFO,
+    AlertType.UNCERTAIN_MATCH: Recipient.BOOKKEEPER,
+}
+
+
 @dataclass(frozen=True)
 class Bank:
     code: str
