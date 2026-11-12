@@ -6,7 +6,7 @@ Amounts are always Decimal (USD, two decimal places), never float.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from enum import Enum
@@ -105,6 +105,7 @@ class Document:
     doc_number: str
     status: Status
     linked_payment_id: str | None = None
+    requested_bank_code: str | None = None  # bank picked at approval, held on alert
 
 
 @dataclass
@@ -126,6 +127,7 @@ class StatementLine:
     value_date: date
     status: Status | None = None
     matched_payment_id: str | None = None
+    candidate_document_ids: list[str] = field(default_factory=list)  # set on review
 
 
 @dataclass
@@ -136,3 +138,4 @@ class Alert:
     document_id: str | None = None
     statement_line_id: str | None = None
     message: str = ""
+    resolved: bool = False

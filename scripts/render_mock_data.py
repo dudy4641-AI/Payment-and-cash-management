@@ -91,6 +91,13 @@ def metric2() -> list[str]:
     out += table(["#", "בנק", "שם בתנועה", "סכום", "תוצאה צפויה", "הערה"], rows)
     out += [f"**צפוי:** {s.expected_matched} משויכות נכון, {s.expected_missing} חסרות חשבונית, "
             f"{s.expected_review} לבירור, 0 שיוכים שגויים.", ""]
+    a = md.ALIAS_CASE
+    out += ["### בדיקה נפרדת: שם נוסף לספק", "",
+            f"אחרי שלב ב, מנהלת החשבונות מאשרת שהתנועה \"{a.confirm_payee}\" שייכת ל-"
+            f"{a.confirm_doc_number}. השם נשמר כשם נוסף של {a.next_upload.supplier_name}. "
+            f"אחר כך מעלים ומאשרים את {a.next_upload.doc_number} על {usd(a.next_upload.amount)}, "
+            f"ובדף פירוט חדש מופיעה תנועה \"{a.next_line.payee_name}\" על {usd(a.next_line.amount)}. "
+            f"**צפוי:** שיוך אוטומטי ל-{a.next_upload.doc_number}, בלי פנייה חדשה.", ""]
     return out
 
 

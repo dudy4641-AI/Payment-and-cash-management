@@ -154,15 +154,23 @@ def matching_scenario() -> MatchingScenario:
     plain("Yarkon Cleaning", "960.00", "M-205")
     plain("Initech Israel", "3100.00", "M-206")
     plain("Hooli Analytics", "7800.00", "M-207")
-    plain("Umbrella Security", "5250.75", "M-208")
 
-    # Doubt: supplier name inside a longer name in the line, not equal after cleaning.
+    # Doubt: the line starts with the supplier name, but two approved payments fit.
+    uploads += [_inv("Umbrella Security", "5250.75", "M-208"),
+                _inv("Umbrella Security", "5250.75", "M-217")]
+    lines.append(LabelledLine("chase", _line("UMBRELLA SECURITY SERVICES", "5250.75"), REVIEW,
+                              ("M-208", "M-217"),
+                              "מתחיל בשם הספק, אבל יש שני תשלומים מאושרים שמתאימים"))
+
+    # Automatic: the line starts with the supplier name, one approved payment fits.
     uploads.append(_inv("Stark Hardware", "12999.99", "M-209"))
-    lines.append(LabelledLine("chase", _line("STARK HARDWARE SUPPLY CO", "12999.99"), REVIEW,
-                              ("M-209",), "שם הספק מופיע בתוך שם ארוך יותר, ולא זהה לו אחרי ניקוי"))
+    lines.append(LabelledLine("chase", _line("STARK HARDWARE SUPPLY CO", "12999.99"), MATCHED,
+                              ("M-209",), "מתחיל בשם הספק, תשלום מאושר יחיד: שיוך אוטומטי"))
+
+    # Doubt: supplier name after other text (a payment service). See ALIAS_CASE.
     uploads.append(_inv("Wayne Consulting", "15000.00", "M-210"))
     lines.append(LabelledLine("chase", _line("PAYPAL *WAYNE CONSULTING", "15000.00"), REVIEW,
-                              ("M-210",), "שם הספק מופיע בתוך שם ארוך יותר, ולא זהה לו אחרי ניקוי"))
+                              ("M-210",), "שם הספק אחרי שירות תשלומים: בירור בפעם הראשונה"))
 
     # Doubt: same supplier and amount, two approved payments but one line.
     uploads += [_inv("Initrode Inc", "2450.00", "M-211"), _inv("Initrode Inc", "2450.00", "M-216")]
@@ -202,6 +210,25 @@ def matching_scenario() -> MatchingScenario:
                      note="סנט אחד יותר מתשלום מאושר (M-207): אסור לשייך"),
     ]
     return MatchingScenario(uploads=uploads, lines=lines)
+
+
+@dataclass(frozen=True)
+class AliasCase:
+    """Rule (b) follow-up: the bookkeeper confirms a doubtful line, then the
+    same bank name in a later statement is matched automatically."""
+
+    confirm_payee: str
+    confirm_doc_number: str
+    next_upload: DocumentUpload
+    next_line: StatementEntry
+
+
+ALIAS_CASE = AliasCase(
+    confirm_payee="PAYPAL *WAYNE CONSULTING",
+    confirm_doc_number="M-210",
+    next_upload=_inv("Wayne Consulting", "4125.00", "M-218"),
+    next_line=StatementEntry("PAYPAL *WAYNE CONSULTING", D("4125.00"), date(2026, 11, 17)),
+)
 
 
 # --- Metric 3: duplicate payments ------------------------------------------
