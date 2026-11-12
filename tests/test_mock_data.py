@@ -34,12 +34,19 @@ def test_matching_has_12_5_3():
     labels = Counter(l.expected for l in s.lines)
     assert len(s.lines) == 20
     assert labels == {md.MATCHED: 12, md.MISSING: 5, md.REVIEW: 3}
-    # Every matched line has exactly one document with that exact name and amount.
+    uploads = {u.doc_number: u for u in s.uploads}
     for line in s.lines:
-        if line.expected == md.MATCHED:
-            same = [u for u in s.uploads
-                    if u.supplier_name == line.entry.payee_name and u.amount == line.entry.amount]
-            assert [u.doc_number for u in same] == list(line.doc_numbers)
+        # Every candidate document exists and has the line's amount.
+        for n in line.doc_numbers:
+            assert uploads[n].amount == line.entry.amount
+        if line.expected == md.MISSING:
+            assert line.doc_numbers == ()
+    # Lines that share candidates: as many lines as documents means automatic
+    # matching; a different count means review.
+    groups = Counter(l.doc_numbers for l in s.lines if len(l.doc_numbers) > 1)
+    for docs, n_lines in groups.items():
+        expected = {l.expected for l in s.lines if l.doc_numbers == docs}
+        assert expected == {md.MATCHED if n_lines == len(docs) else md.REVIEW}
 
 
 def test_duplicates_has_12_4_4():
@@ -57,13 +64,12 @@ def test_duplicates_has_12_4_4():
 
 def test_wrong_bank_cases():
     s = md.wrong_bank_scenario()
-    assert len(s.wrong) == 2
-    for upload, bank in s.wrong:
-        assert md.SUPPLIER_BY_NAME[upload.supplier_name].entity == Entity.US
-        assert bank == "leumi"
+    banks = {b.code: b for b in md.BANKS}
+    pairs = [(md.SUPPLIER_BY_NAME[u.supplier_name].entity, bank) for u, bank in s.wrong]
+    assert len(s.wrong) == s.expected_alerts == 4
+    assert Counter(pairs) == {(Entity.US, "leumi"): 2, (Entity.IL, "chase"): 2}
     for upload, bank in s.control:
-        entity = md.SUPPLIER_BY_NAME[upload.supplier_name].entity
-        assert not (entity == Entity.US and bank == "leumi")
+        assert md.SUPPLIER_BY_NAME[upload.supplier_name].entity == banks[bank].entity
 
 
 def test_balance_expectations_add_up_to_the_cent():

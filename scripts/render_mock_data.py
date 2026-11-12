@@ -64,7 +64,7 @@ def metric1() -> list[str]:
 def metric2() -> list[str]:
     s = md.matching_scenario()
     out = ["## מדד 2: שיוך", "",
-           "שלב א: מעלים את 15 המסמכים ומאשרים כל אחד מהבנק הנכון לישות של הספק.", ""]
+           f"שלב א: מעלים את {len(s.uploads)} המסמכים ומאשרים כל אחד מהבנק הנכון לישות של הספק.", ""]
     out += table(
         ["מספר מסמך", "סוג", "ספק", "ישות", "סכום", "בנק לתשלום"],
         [[u.doc_number, u.doc_type.value, u.supplier_name, entity(u.supplier_name),
@@ -74,12 +74,18 @@ def metric2() -> list[str]:
     rows = []
     for i, l in enumerate(s.lines, 1):
         if l.expected == md.MATCHED:
-            result = f"משויכת ל-{l.doc_numbers[0]}, המסמך עובר ל{Status.PAID.value}"
+            if len(l.doc_numbers) == 1:
+                result = f"משויכת ל-{l.doc_numbers[0]}, המסמך עובר ל{Status.PAID.value}"
+            else:
+                result = (f"משויכת לאחד מ-{', '.join(l.doc_numbers)} (כל תנועה למסמך אחר), "
+                          f"המסמך עובר ל{Status.PAID.value}")
         elif l.expected == md.MISSING:
             result = f"{Status.MISSING_INVOICE.value}"
         else:
+            docs = (f"המסמך {l.doc_numbers[0]} לא משויך ועובר" if len(l.doc_numbers) == 1
+                    else f"המסמכים {', '.join(l.doc_numbers)} לא משויכים ועוברים")
             result = (f"{Status.NEEDS_REVIEW.value}, פנייה למנהלת החשבונות; "
-                      f"המסמכים {', '.join(l.doc_numbers)} לא משויכים ועוברים ל{Status.NEEDS_REVIEW.value}")
+                      f"{docs} ל{Status.NEEDS_REVIEW.value}")
         rows.append([str(i), BANK_NAME[l.bank_code], l.entry.payee_name, usd(l.entry.amount),
                      result, l.note or "—"])
     out += table(["#", "בנק", "שם בתנועה", "סכום", "תוצאה צפויה", "הערה"], rows)
@@ -132,7 +138,8 @@ def metric4() -> list[str]:
         rows.append([u.doc_number, u.supplier_name, entity(u.supplier_name), usd(u.amount),
                      BANK_NAME[bank], f"אין התראה, {Status.APPROVED.value}, תשלום נשלח"])
     out += table(["מספר מסמך", "ספק", "ישות", "סכום", "בנק שנבחר", "תוצאה צפויה"], rows)
-    out += ["**צפוי:** 2 מתוך 2 מקבלות התראה, 0 התראות על שלוש הביקורות.", ""]
+    out += [f"**צפוי:** {s.expected_alerts} מתוך {len(s.wrong)} מקבלות התראה, "
+            f"0 התראות על {len(s.control)} הביקורות.", ""]
     return out
 
 

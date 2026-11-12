@@ -46,7 +46,8 @@ def test_statement_lines_are_matched_flagged_or_sent_for_review(system):
 
         if labelled.expected == MATCHED:
             matched += line.matched_payment_id is not None
-            assert current(system, doc_by_number[labelled.doc_numbers[0]].id).status == Status.PAID
+            for n in labelled.doc_numbers:
+                assert current(system, doc_by_number[n].id).status == Status.PAID
         elif labelled.expected == MISSING:
             missing += line.status == Status.MISSING_INVOICE
         elif labelled.expected == REVIEW:
@@ -56,6 +57,10 @@ def test_statement_lines_are_matched_flagged_or_sent_for_review(system):
                 assert alert.recipient == Recipient.BOOKKEEPER
 
     assert wrong == 0
+    # A payment is never matched to two lines (the two identical Acme lines
+    # must each get a different document).
+    matched_ids = [line.matched_payment_id for _, line in results if line.matched_payment_id]
+    assert len(matched_ids) == len(set(matched_ids))
     assert matched == scenario.expected_matched
     assert missing == scenario.expected_missing
     assert review == scenario.expected_review

@@ -122,7 +122,8 @@ class LabelledLine:
     bank_code: str
     entry: StatementEntry
     expected: str  # MATCHED, MISSING or REVIEW
-    # For MATCHED: the one document this line must be matched to.
+    # For MATCHED: the document(s) this line may be matched to. When two
+    # identical lines share two candidates, each must get a different one.
     # For REVIEW: the candidate documents (none of them may be matched).
     doc_numbers: tuple[str, ...] = ()
     note: str = ""  # why this line gets its expected result, for the review file
@@ -138,38 +139,52 @@ class MatchingScenario:
 
 
 def matching_scenario() -> MatchingScenario:
-    matched = [
-        ("Shapira Legal", "4200.00", "M-201"),
-        ("Negev Office Rent", "18500.00", "M-202"),
-        ("Carmel IT Services", "2340.50", "M-203"),
-        ("Galil Catering", "1875.25", "M-204"),
-        ("Yarkon Cleaning", "960.00", "M-205"),
-        ("Initech Israel", "3100.00", "M-206"),
-        ("Hooli Analytics", "7800.00", "M-207"),
-        ("Umbrella Security", "5250.75", "M-208"),
-        ("Stark Hardware", "12999.99", "M-209"),
-        ("Wayne Consulting", "15000.00", "M-210"),
-        ("Initrode Inc", "2450.00", "M-211"),
-        ("Acme Cloud", "3600.00", "M-212"),
-    ]
-    uploads = [_inv(s, a, n) for s, a, n in matched]
-    lines = [
-        LabelledLine(correct_bank(s), _line(s, a), MATCHED, (n,)) for s, a, n in matched
-    ]
+    def plain(supplier, amount, number):
+        """An ordinary case: exact name and amount, one payment, one line."""
+        uploads.append(_inv(supplier, amount, number))
+        lines.append(LabelledLine(correct_bank(supplier), _line(supplier, amount), MATCHED, (number,)))
 
-    # Doubt case 1: two approved payments to the same supplier, same amount.
+    uploads: list[DocumentUpload] = []
+    lines: list[LabelledLine] = []
+
+    plain("Shapira Legal", "4200.00", "M-201")
+    plain("Negev Office Rent", "18500.00", "M-202")
+    plain("Carmel IT Services", "2340.50", "M-203")
+    plain("Galil Catering", "1875.25", "M-204")
+    plain("Yarkon Cleaning", "960.00", "M-205")
+    plain("Initech Israel", "3100.00", "M-206")
+    plain("Hooli Analytics", "7800.00", "M-207")
+    plain("Umbrella Security", "5250.75", "M-208")
+
+    # Doubt: supplier name inside a longer name in the line, not equal after cleaning.
+    uploads.append(_inv("Stark Hardware", "12999.99", "M-209"))
+    lines.append(LabelledLine("chase", _line("STARK HARDWARE SUPPLY CO", "12999.99"), REVIEW,
+                              ("M-209",), "שם הספק מופיע בתוך שם ארוך יותר, ולא זהה לו אחרי ניקוי"))
+    uploads.append(_inv("Wayne Consulting", "15000.00", "M-210"))
+    lines.append(LabelledLine("chase", _line("PAYPAL *WAYNE CONSULTING", "15000.00"), REVIEW,
+                              ("M-210",), "שם הספק מופיע בתוך שם ארוך יותר, ולא זהה לו אחרי ניקוי"))
+
+    # Doubt: same supplier and amount, two approved payments but one line.
+    uploads += [_inv("Initrode Inc", "2450.00", "M-211"), _inv("Initrode Inc", "2450.00", "M-216")]
+    lines.append(LabelledLine("chase", _line("Initrode Inc", "2450.00"), REVIEW, ("M-211", "M-216"),
+                              "שני תשלומים מאושרים לאותו ספק באותו סכום, ותנועה אחת"))
+
+    plain("Acme Cloud", "3600.00", "M-212")
+
+    # Automatic: same supplier and amount, two payments and two lines. Each line
+    # is matched to a different one of the two documents.
     uploads += [_inv("Acme Cloud", "1000.00", "M-213"), _inv("Acme Cloud", "1000.00", "M-214")]
     lines += [
-        LabelledLine("chase", _line("Acme Cloud", "1000.00"), REVIEW, ("M-213", "M-214"),
-                     "שני תשלומים לאותו ספק באותו סכום"),
-        LabelledLine("chase", _line("Acme Cloud", "1000.00"), REVIEW, ("M-213", "M-214"),
-                     "שני תשלומים לאותו ספק באותו סכום"),
+        LabelledLine("chase", _line("Acme Cloud", "1000.00"), MATCHED, ("M-213", "M-214"),
+                     "שני תשלומים ושתי תנועות: שיוך אוטומטי"),
+        LabelledLine("chase", _line("Acme Cloud", "1000.00"), MATCHED, ("M-213", "M-214"),
+                     "שני תשלומים ושתי תנועות: שיוך אוטומטי"),
     ]
 
-    # Doubt case 2: near-identical name ("Globex Ltd" vs "GLOBEX, LTD.").
+    # Automatic: name equal after cleaning ("GLOBEX, LTD." -> "globex" <- "Globex Ltd").
     uploads.append(_inv("Globex Ltd", "750.00", "M-215"))
-    lines.append(LabelledLine("chase", _line("GLOBEX, LTD.", "750.00"), REVIEW, ("M-215",),
-                              "שם כמעט זהה: אחרי ניקוי זהה ל-Globex Ltd, במקור שונה"))
+    lines.append(LabelledLine("chase", _line("GLOBEX, LTD.", "750.00"), MATCHED, ("M-215",),
+                              "זהה ל-Globex Ltd אחרי ניקוי: שיוך אוטומטי"))
 
     # Missing invoice: lines that never went through the system.
     lines += [
@@ -236,8 +251,9 @@ def duplicate_scenario() -> DuplicateScenario:
 
 @dataclass
 class WrongBankScenario:
-    wrong: list[tuple[DocumentUpload, str]]  # US supplier paid from Leumi
+    wrong: list[tuple[DocumentUpload, str]]  # supplier entity differs from bank entity
     control: list[tuple[DocumentUpload, str]]  # paid from the right bank
+    expected_alerts: int = 4
 
 
 def wrong_bank_scenario() -> WrongBankScenario:
@@ -245,6 +261,9 @@ def wrong_bank_scenario() -> WrongBankScenario:
         wrong=[
             (_inv("Initrode Inc", "3200.00", "W-401"), "leumi"),
             (_inv("Stark Hardware", "1150.00", "W-402"), "leumi"),
+            # Israeli supplier paid from Chase (US entity).
+            (_inv("Tavor Translations", "1340.00", "W-406"), "chase"),
+            (_inv("Hermon Insurance", "2980.00", "W-407"), "chase"),
         ],
         control=[
             (_inv("Shapira Legal", "2600.00", "W-403"), "leumi"),

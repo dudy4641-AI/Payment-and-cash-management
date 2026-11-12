@@ -1,5 +1,6 @@
-"""SPEC 8.4: two invoices of a US supplier with Leumi as the paying bank.
-2/2 alerted, 0 alerts on payments from the right bank."""
+"""SPEC 8.4: two invoices of a US supplier paid from Leumi and two of an
+Israeli supplier paid from Chase. 4/4 alerted, 0 alerts on payments from the
+right bank."""
 
 from payments.mock_data import wrong_bank_scenario
 from payments.models import AlertType, Recipient, Status
@@ -7,7 +8,7 @@ from payments.models import AlertType, Recipient, Status
 from .conftest import current, upload_and_approve
 
 
-def test_leumi_for_us_supplier_is_alerted(system):
+def test_supplier_entity_different_from_bank_entity_is_alerted(system):
     scenario = wrong_bank_scenario()
 
     wrong_docs = []
@@ -27,7 +28,7 @@ def test_leumi_for_us_supplier_is_alerted(system):
     wrong_bank_alerts = [a for a in alerts if a.alert_type == AlertType.WRONG_BANK]
 
     assert {a.document_id for a in wrong_bank_alerts} == {d.id for d in wrong_docs}
-    assert len(wrong_bank_alerts) == 2
+    assert len(wrong_bank_alerts) == scenario.expected_alerts
     assert all(a.recipient == Recipient.CFO for a in wrong_bank_alerts)
     assert all(current(system, d.id).status == Status.NEEDS_REVIEW for d in wrong_docs)
 
