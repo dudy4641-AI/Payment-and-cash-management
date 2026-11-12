@@ -145,3 +145,17 @@ def test_export_lists_every_statement_line(system):
         ("M-215", "Globex Ltd", Status.PAID.value)
     zoom = next(r for r in rows if r["payee"] == "Zoom Video")
     assert (zoom["document_number"], zoom["status"]) == ("", Status.MISSING_INVOICE.value)
+
+
+def test_removed_name_goes_back_to_review(system):
+    docs, lines = run_matching(system)
+    line = next(l for l in lines if l.payee_name == ALIAS_CASE.confirm_payee)
+    system.confirm_match(line.id, docs[ALIAS_CASE.confirm_doc_number].id)
+    alias = clean_name(ALIAS_CASE.confirm_payee)
+    assert system.aliases_by_supplier() == {"Wayne Consulting": [alias]}
+
+    system.remove_alias(alias)
+    assert system.aliases_by_supplier() == {}
+    upload_and_approve(system, ALIAS_CASE.next_upload, "chase")
+    [new_line] = system.ingest_statement("chase", [ALIAS_CASE.next_line])
+    assert new_line.status == Status.NEEDS_REVIEW

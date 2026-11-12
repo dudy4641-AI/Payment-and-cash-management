@@ -47,6 +47,7 @@ class Store(Protocol):
     def load(self) -> Snapshot: ...
     def save(self, record: Any) -> None: ...
     def save_alias(self, alias: str, supplier_name: str) -> None: ...
+    def delete_alias(self, alias: str) -> None: ...
 
 
 class InMemoryStore:
@@ -57,6 +58,9 @@ class InMemoryStore:
         pass
 
     def save_alias(self, alias: str, supplier_name: str) -> None:
+        pass
+
+    def delete_alias(self, alias: str) -> None:
         pass
 
 
@@ -136,6 +140,9 @@ class SupabaseStore:
 
     def save_alias(self, alias: str, supplier_name: str) -> None:
         self._upsert("supplier_aliases", {"alias": alias, "supplier_name": supplier_name})
+
+    def delete_alias(self, alias: str) -> None:
+        self._request("DELETE", "supplier_aliases", params={"alias": f"eq.{alias}"})
 
     def load(self) -> Snapshot:
         def rows(table: str, order: str) -> list[dict[str, Any]]:

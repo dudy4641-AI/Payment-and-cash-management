@@ -322,6 +322,25 @@ class PaymentSystem:
                 a.resolved = True
                 self.store.save(a)
 
+    def aliases_by_supplier(self) -> dict[str, list[str]]:
+        """Bank names the system learned for each supplier (cleaned form)."""
+        out: dict[str, list[str]] = defaultdict(list)
+        for alias, supplier in self.aliases.items():
+            out[supplier].append(alias)
+        return {s: sorted(a) for s, a in sorted(out.items())}
+
+    def remove_alias(self, alias: str) -> None:
+        """Forget a learned name that was wrong. Lines already matched stay
+        matched; new lines with this name go back to review."""
+        if self.aliases.pop(alias, None) is not None:
+            self.store.delete_alias(alias)
+
+    def resolve_alert(self, alert_id: str) -> None:
+        """Mark an alert as handled (e.g. a duplicate upload fixed by hand)."""
+        alert = self._alerts[alert_id]
+        alert.resolved = True
+        self.store.save(alert)
+
     # --- Export ------------------------------------------------------------
 
     def export_transactions_csv(self) -> str:
