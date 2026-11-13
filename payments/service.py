@@ -371,10 +371,33 @@ class PaymentSystem:
     # --- Balances (stage 3) ------------------------------------------------
 
     def current_balance(self, bank_code: str) -> Decimal:
-        raise NotImplementedError("stage 3: current_balance")
+        """Opening balance minus every line in this bank's statements. Only the
+        statement counts, whether or not a line was matched (SPEC section 5)."""
+        out = sum((l.amount for l in self._lines.values() if l.bank_code == bank_code),
+                  Decimal("0"))
+        return self.banks[bank_code].opening_balance - out
+
+    def pending_payments(self, bank_code: str) -> list[Payment]:
+        """Approved payments sent from this bank that have not appeared in it."""
+        return [copy.deepcopy(p) for p in self._payments.values()
+                if p.bank_code == bank_code and p.statement_line_id is None]
 
     def expected_balance(self, bank_code: str) -> Decimal:
-        raise NotImplementedError("stage 3: expected_balance")
+        """Current balance minus approved payments not yet in the bank.
+
+        A line under review is one of its candidate payments already in the
+        bank; it is in the current balance, so one candidate's amount is not
+        subtracted again."""
+        pending = sum((p.amount for p in self.pending_payments(bank_code)), Decimal("0"))
+        open_docs = {p.document_id for p in self._payments.values()
+                     if p.bank_code == bank_code and p.statement_line_id is None}
+        in_review = sum(
+            (l.amount for l in self._lines.values()
+             if l.bank_code == bank_code and l.status == Status.NEEDS_REVIEW
+             and l.matched_payment_id is None
+             and any(d in open_docs for d in l.candidate_document_ids)),
+            Decimal("0"))
+        return self.current_balance(bank_code) - (pending - in_review)
 
     # --- Helpers -----------------------------------------------------------
 

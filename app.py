@@ -64,7 +64,7 @@ def esc(text: str) -> str:
 
 
 def usd(x: Decimal) -> str:
-    return f"${x:,.2f}"
+    return f"-${-x:,.2f}" if x < 0 else f"${x:,.2f}"
 
 
 def parse_amount(text: str) -> Decimal | None:
@@ -94,6 +94,7 @@ with st.sidebar:
         "דף פירוט בנק",
         "פניות למנהלת החשבונות",
         "שמות שהמערכת למדה",
+        "יתרות",
     ], key="page", format_func=lambda n: {
         'החלטות סמנכ"ל': f'{n} ({open_counts[AlertType.WRONG_BANK]})',
         "פניות למנהלת החשבונות":
@@ -320,3 +321,46 @@ if page == 'שמות שהמערכת למדה':
                     system.remove_alias(alias)
                     flash(f"השם {alias} נמחק מ-{supplier}")
                     st.rerun()
+
+# --- Balances --------------------------------------------------------------
+
+if page == 'יתרות':
+    st.subheader("יתרות לפי בנק וישות")
+    st.caption("יתרה נוכחית: יתרת הפתיחה פחות כל התנועות בדפי הפירוט. "
+               "יתרה צפויה: הנוכחית פחות תשלומים שאושרו ועוד לא הופיעו בבנק.")
+    for entity in Entity:
+        banks = [b for b in system.banks.values() if b.entity == entity]
+        if not banks:
+            continue
+        rows, totals = [], [Decimal("0")] * 3
+        for b in banks:
+            current, expected = system.current_balance(b.code), system.expected_balance(b.code)
+            rows.append({
+                "בנק": b.name,
+                "יתרת פתיחה": usd(b.opening_balance),
+                "יתרה נוכחית": usd(current),
+                "יתרה צפויה": usd(expected),
+                "תשלומים שממתינים להופיע בבנק": len(system.pending_payments(b.code)),
+            })
+            totals = [t + v for t, v in zip(totals, (b.opening_balance, current, expected))]
+        st.markdown(f"#### {esc(entity.value)}")
+        cols = st.columns(2)
+        cols[0].metric("יתרה נוכחית, סך הכול", usd(totals[1]))
+        cols[1].metric("יתרה צפויה, סך הכול", usd(totals[2]),
+                       delta=usd(totals[2] - totals[1]) if totals[2] != totals[1] else None,
+                       delta_color="off")
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+
+    st.subheader("תשלומים שאושרו ועוד לא הופיעו בבנק")
+    pending_rows = [{
+        "בנק": bank_names[p.bank_code],
+        "מספר מסמך": docs[p.document_id].doc_number,
+        "ספק": p.supplier_name,
+        "סכום": usd(p.amount),
+        "סטטוס": docs[p.document_id].status.value,
+    } for code in system.banks for p in system.pending_payments(code)]
+    if pending_rows:
+        st.dataframe(pd.DataFrame(pending_rows), hide_index=True, width="stretch")
+        st.caption("תשלום שהתנועה שלו נמצאת בבירור כבר יצא מהבנק, ולכן לא מנוכה פעמיים מהיתרה הצפויה.")
+    else:
+        st.info("אין")
